@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2016 Anton Tananaev (anton.tananaev@gmail.com)
+ * Copyright 2012 - 2017 Anton Tananaev (anton.tananaev@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceManager;
 import android.preference.TwoStatePreference;
-import android.util.Patterns;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
@@ -43,11 +43,15 @@ import java.util.Set;
 @SuppressWarnings("deprecation")
 public class MainActivity extends PreferenceActivity implements OnSharedPreferenceChangeListener {
 
+    private static final String TAG = MainActivity.class.getSimpleName();
+
     public static final String KEY_DEVICE = "id";
     public static final String KEY_ADDRESS = "address";
     public static final String KEY_PORT = "port";
     public static final String KEY_SECURE = "secure";
     public static final String KEY_INTERVAL = "interval";
+    public static final String KEY_DISTANCE = "distance";
+    public static final String KEY_ANGLE = "angle";
     public static final String KEY_PROVIDER = "provider";
     public static final String KEY_STATUS = "status";
 
@@ -92,10 +96,9 @@ public class MainActivity extends PreferenceActivity implements OnSharedPreferen
                 if (newValue != null) {
                     try {
                         int value = Integer.parseInt((String) newValue);
-                        if (value > 0 && value <= 65536) {
-                            return true;
-                        }
+                        return value > 0 && value <= 65536;
                     } catch (NumberFormatException e) {
+                        Log.w(TAG, e);
                     }
                 }
                 return false;
@@ -106,14 +109,32 @@ public class MainActivity extends PreferenceActivity implements OnSharedPreferen
             public boolean onPreferenceChange(Preference preference, Object newValue) {
                 if (newValue != null) {
                     try {
-                        Integer.parseInt((String) newValue);
-                        return true;
+                        int value = Integer.parseInt((String) newValue);
+                        return value > 0;
                     } catch (NumberFormatException e) {
+                        Log.w(TAG, e);
                     }
                 }
                 return false;
             }
         });
+
+        Preference.OnPreferenceChangeListener numberValidationListener = new Preference.OnPreferenceChangeListener() {
+            @Override
+            public boolean onPreferenceChange(Preference preference, Object newValue) {
+                if (newValue != null) {
+                    try {
+                        int value = Integer.parseInt((String) newValue);
+                        return value >= 0;
+                    } catch (NumberFormatException e) {
+                        Log.w(TAG, e);
+                    }
+                }
+                return false;
+            }
+        };
+        findPreference(KEY_DISTANCE).setOnPreferenceChangeListener(numberValidationListener);
+        findPreference(KEY_ANGLE).setOnPreferenceChangeListener(numberValidationListener);
 
         alarmManager = (AlarmManager) getSystemService(ALARM_SERVICE);
         alarmIntent = PendingIntent.getBroadcast(this, 0, new Intent(this, AutostartReceiver.class), 0);
@@ -139,11 +160,10 @@ public class MainActivity extends PreferenceActivity implements OnSharedPreferen
         }
     }
 
-    private void addShortcuts(boolean start, int name) {
+    private void addShortcuts(String action, int name) {
         Intent shortcutIntent = new Intent(Intent.ACTION_MAIN);
         shortcutIntent.setComponent(new ComponentName(getPackageName(), ShortcutActivity.class.getCanonicalName()));
-        shortcutIntent.putExtra(ShortcutActivity.EXTRA_ACTION, start);
-
+        shortcutIntent.putExtra(ShortcutActivity.EXTRA_ACTION, action);
         Intent installShortCutIntent = new Intent("com.android.launcher.action.INSTALL_SHORTCUT");
         installShortCutIntent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
         installShortCutIntent.putExtra(Intent.EXTRA_SHORTCUT_NAME, getString(name));
@@ -178,6 +198,8 @@ public class MainActivity extends PreferenceActivity implements OnSharedPreferen
         findPreference(KEY_PORT).setEnabled(enabled);
         findPreference(KEY_SECURE).setEnabled(enabled);
         findPreference(KEY_INTERVAL).setEnabled(enabled);
+        findPreference(KEY_DISTANCE).setEnabled(enabled);
+        findPreference(KEY_ANGLE).setEnabled(enabled);
         findPreference(KEY_PROVIDER).setEnabled(enabled);
     }
 
@@ -206,8 +228,9 @@ public class MainActivity extends PreferenceActivity implements OnSharedPreferen
             startActivity(new Intent(this, StatusActivity.class));
             return true;
         } else if (item.getItemId() == R.id.shortcuts) {
-            addShortcuts(true, R.string.shortcut_start);
-            addShortcuts(false, R.string.shortcut_stop);
+            addShortcuts(ShortcutActivity.EXTRA_ACTION_START, R.string.shortcut_start);
+            addShortcuts(ShortcutActivity.EXTRA_ACTION_STOP, R.string.shortcut_stop);
+            addShortcuts(ShortcutActivity.EXTRA_ACTION_SOS, R.string.shortcut_sos);
             return true;
         } else if (item.getItemId() == R.id.about) {
             startActivity(new Intent(this, AboutActivity.class));
